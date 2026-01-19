@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, WheelEvent } from "react";
+import { Button } from "@/components/ui/button";
 import { Leader } from "@/lib/leaders";
+import cafeComOnePieceBadge from "@/assets/cafecomonepiece.png";
 
 interface PieChartProps {
   data: Array<{ leader: Leader; count: number }>;
@@ -48,10 +50,11 @@ export default function PieChart({ data }: PieChartProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Set canvas size
+    // Set canvas size (account for device pixel ratio for sharper rendering)
     const size = 1000;
-    canvas.width = size;
-    canvas.height = size;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
 
     const centerX = size / 2;
     const centerY = size / 2;
@@ -62,10 +65,14 @@ export default function PieChart({ data }: PieChartProps) {
 
     // Preload all images
     const imageMap = new Map<string, HTMLImageElement>();
+    const badgeImage = new Image();
 
     const drawChart = () => {
       // Clear canvas
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, size, size);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
 
       // Draw images in each slice
       let currentAngle = -Math.PI / 2;
@@ -151,6 +158,7 @@ export default function PieChart({ data }: PieChartProps) {
       });
 
       // Draw outer circle border
+      ctx.lineWidth = 18;
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
       ctx.stroke();
@@ -166,11 +174,53 @@ export default function PieChart({ data }: PieChartProps) {
       ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
       ctx.fillStyle = "#FFFFFF";
       ctx.fill();
+
+      // Draw badge image in the top-right along the outer ring
+      const badgeAngle = -Math.PI / 6;
+      const badgeRadius = radius - 9;
+      const badgeSize = 150;
+
+      if (badgeImage.complete && badgeImage.naturalHeight !== 0) {
+        const badgeX = centerX + Math.cos(badgeAngle) * badgeRadius;
+        const badgeY = centerY + Math.sin(badgeAngle) * badgeRadius;
+
+        ctx.save();
+        ctx.translate(badgeX, badgeY);
+        ctx.rotate(badgeAngle + Math.PI / 2);
+
+        const badgeAspect = badgeImage.width / badgeImage.height || 1;
+        let badgeDrawWidth = badgeSize;
+        let badgeDrawHeight = badgeSize;
+
+        if (badgeAspect > 1) {
+          badgeDrawHeight = badgeSize / badgeAspect;
+        } else {
+          badgeDrawWidth = badgeSize * badgeAspect;
+        }
+
+        ctx.drawImage(
+          badgeImage,
+          -badgeDrawWidth / 2,
+          -badgeDrawHeight / 2,
+          badgeDrawWidth,
+          badgeDrawHeight
+        );
+        ctx.restore();
+      }
+
     };
 
     // Load all images
     let imagesLoaded = 0;
     const leadersToLoad = data.filter((item) => item.count > 0);
+    const totalImagesToLoad = leadersToLoad.length + 1;
+
+    const markImageLoaded = () => {
+      imagesLoaded++;
+      if (imagesLoaded >= totalImagesToLoad) {
+        drawChart();
+      }
+    };
 
     if (leadersToLoad.length === 0) return;
 
@@ -179,27 +229,18 @@ export default function PieChart({ data }: PieChartProps) {
       img.crossOrigin = "anonymous";
 
       const onImageLoad = () => {
-        imagesLoaded++;
         imageMap.set(item.leader.id, img);
-        if (imagesLoaded === leadersToLoad.length) {
-          drawChart();
-        }
+        markImageLoaded();
       };
 
       const onImageError = () => {
         const retryImg = new Image();
         retryImg.onload = () => {
-          imagesLoaded++;
           imageMap.set(item.leader.id, retryImg);
-          if (imagesLoaded === leadersToLoad.length) {
-            drawChart();
-          }
+          markImageLoaded();
         };
         retryImg.onerror = () => {
-          imagesLoaded++;
-          if (imagesLoaded === leadersToLoad.length) {
-            drawChart();
-          }
+          markImageLoaded();
         };
         retryImg.src = item.leader.image;
       };
@@ -208,6 +249,10 @@ export default function PieChart({ data }: PieChartProps) {
       img.onerror = onImageError;
       img.src = item.leader.image;
     });
+
+    badgeImage.onload = markImageLoaded;
+    badgeImage.onerror = markImageLoaded;
+    badgeImage.src = cafeComOnePieceBadge;
 
     drawChart();
   }, [data, imageAdjustments]);
@@ -327,6 +372,16 @@ export default function PieChart({ data }: PieChartProps) {
     setImageAdjustments(newAdjustments);
   };
 
+  const handleDownload = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = "grafico.png";
+    link.click();
+  };
+
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-96">
@@ -349,9 +404,18 @@ export default function PieChart({ data }: PieChartProps) {
           onMouseLeave={handleCanvasMouseUp}
           onWheel={handleWheel}
         />
-        <p className="text-xs text-gray-500 text-center mt-2">
-          Clique em uma fatia, arraste para mover a imagem, use scroll para zoom
-        </p>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-gray-500">
+            Clique em uma fatia, arraste para mover a imagem, use scroll para zoom
+          </p>
+          <Button
+            size="sm"
+            onClick={handleDownload}
+            className="w-32 bg-[#FFC208] text-black hover:bg-[#FFC208]"
+          >
+            Baixar
+          </Button>
+        </div>
       </div>
 
       {/* Legend */}
@@ -387,7 +451,7 @@ export default function PieChart({ data }: PieChartProps) {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex items-baseline gap-2">
-                      <p className="text-lg font-bold text-primary">
+                      <p className="text-lg font-bold text-[#FFC208]">
                         {item.count}
                       </p>
                       <p className="text-xs font-semibold text-gray-600">

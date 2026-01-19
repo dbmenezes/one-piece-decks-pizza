@@ -63,7 +63,7 @@ export default function LeaderSelector({ onDataChange }: LeaderSelectorProps) {
   return (
     <div className="w-full max-w-md">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-primary">Seleção de Líderes</h2>
+        <h2 className="text-2xl font-bold text-[#FFC208]">Seleção de Líderes</h2>
         {totalCount > 0 && (
           <Button
             onClick={handleReset}
@@ -141,7 +141,7 @@ export default function LeaderSelector({ onDataChange }: LeaderSelectorProps) {
                     onClick={() => handleIncrement(leader.id)}
                     variant="default"
                     size="sm"
-                    className="h-8 w-8 p-0 bg-primary hover:bg-primary/90"
+                    className="h-8 w-8 p-0 bg-[#FFC208] text-black hover:bg-[#FFC208]"
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
